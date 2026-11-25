@@ -4,7 +4,7 @@ description: "This skill provides comprehensive guidance for integrating and usi
 license: Apache-2.0
 metadata: 
     author: dokieyang
-    version: 1.4
+    version: 1.5
 ---
 
 # Tencent Cloud Player SDK
@@ -37,7 +37,7 @@ The Tencent Cloud Player SDK provides video playback capabilities for both live 
 | **Android** | API 16+ (Android 4.1+) | Stable |
 | **iOS** | iOS 9.0+ | Stable |
 | **Web/H5** | HTML5 modern browsers | Stable |
-| **Flutter** | Flutter 2.0+ | Stable |
+| **Flutter** | Flutter 3.27.4+ | Stable |
 | **HarmonyOS** | API Version 17+ | Stable |
 
 ### Supported Protocols
@@ -180,14 +180,14 @@ grep -i "cache\|buffer" references/*.md
 | `TXVodPlayConfig` / `FTXVodPlayConfig` | Player configuration | Android & iOS & HarmonyOS / Flutter |
 | `TXPlayerGlobalSetting` / `TXVodGlobalSetting` | Global settings (cache path, etc.) | Android & iOS / HarmonyOS |
 | `TXVodDownloadManager` / `TXVodDownloadController` | Offline download manager | Android & iOS & HarmonyOS / Flutter |
-| `TXVodPreloadManager` | Video preloading | Android / iOS / Flutter / HarmonyOS |
-| `ITXVodPlayListener` (Android/HarmonyOS) / `TXVodPlayListener` (iOS) | Playback event callback | Respective platforms |
+| `TXVodPreloadManager` | Video preloading | Android / iOS / HarmonyOS |
+| `ITXVodPlayListener` (Android) / `ITXVodPlayCallback` (HarmonyOS) / `TXVodPlayListener` (iOS) | Playback event callback | Respective platforms |
 | `TXVodConstants` (Android/HarmonyOS) / `TXVodSDKEventDef` (iOS) | Constants/event definitions | Respective platforms |
 | `TXCloudVideoView` (Android) / `TXPlayerVideo` (Flutter) / `XComponent` (HarmonyOS) | Video render view | Respective platforms |
 | `TXPlayInfoParams` (Android & Flutter & HarmonyOS) / `TXPlayerAuthParams` (iOS) | FileID playback parameters | Respective platforms |
 | `TUIShortVideoView` / `TUIShortVideoView` | Short video component view | Android / iOS |
 | `FTUIPlayerShortController` | Flutter short video controller | Flutter |
-| `TUIPlayerVodStrategyModel` | Short video strategy config | Android / iOS |
+| `TUIPlayerVodStrategy` (Android) / `TUIPlayerVodStrategyModel` (iOS) | Short video strategy config | Android / iOS |
 | `MonetPlugin` / `TXCMonetPluginManager` | TSR (super-resolution) plugin | Android / iOS |
 
 ### Platform Feature Comparison
@@ -200,10 +200,10 @@ grep -i "cache\|buffer" references/*.md
 | Resolution Switching | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Offline Download | ✓ | ✓ | ✓ | ✗ | ✓ |
 | Video Preloading | ✓ | ✓ | ✓ | ✗ | ✓ |
-| Picture-in-Picture | ✓ | ✓ (Premium) | ✓ | ✗ | ✗ |
+| Picture-in-Picture | ✓ (Premium) | ✓ (Premium) | ✓ (Premium) | ✗ | ✗ |
 | VR Playback | ✓ (Premium) | ✓ (Premium) | ✗ | ✓ (Premium) | ✗ |
-| DRM | ✓ (Premium) | ✓ (Premium) | ✗ | ✗ | ✗ |
-| External Subtitles | ✓ | ✓ | ✓ | ✓ | ✓ (Premium) |
-| Multi-audio Track | ✓ | ✓ | ✓ | ✓ | ✓ (Premium) |
+| DRM | ✓ (Premium) | ✓ (Premium) | ✗ | ✓ | ✗ |
+| External Subtitles | ✓ (Premium) | ✓ (Premium) | ✓ (Premium) | ✓ | ✓ (Premium) |
+| Multi-audio Track | ✓ (Premium) | ✓ (Premium) | ✓ (Premium) | ✓ | ✓ (Premium) |
 | Short Video Component | ✓ (Premium) | ✓ (Premium) | ✓ (Premium) | ✗ | ✗ |
 | TSR (Super-resolution) | ✓ (Premium) | ✓ (Premium) | ✗ | ✗ | ✗ |

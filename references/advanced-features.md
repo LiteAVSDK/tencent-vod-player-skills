@@ -125,6 +125,12 @@ List<TUIPlaySource> shortVideoData = new ArrayList<>();
 TUIVideoSource videoSource = new TUIVideoSource();
 videoSource.setVideoURL("https://example.com/video.mp4");
 videoSource.setCoverPictureUrl("https://example.com/cover.jpg");
+// FileId playback (fill either fileId or url)
+videoSource.setAppId(1252463788);
+videoSource.setFileId("4564972819220421305");
+videoSource.setPSign("psignxxxxxxx");
+videoSource.setAutoPlay(true);
+videoSource.setExtViewType(0);
 shortVideoData.add(videoSource);
 
 // Live data
@@ -178,9 +184,43 @@ public class TUIVideoInfoLayer extends TUIVodLayer {
 | `startPlayIndex(int index)` | Start playback from a specified position |
 | `pause()` | Pause playback |
 | `resume()` | Resume playback |
-| `setPlayMode(mode)` | Set playback mode (list loop / single loop) |
+| `setPlayMode(mode)` | Set playback mode (`MODE_LIST_LOOP` / `MODE_ONE_LOOP` / `MODE_CUSTOM`) |
+| `setModels(list)` | Replace all data and restart from the first video |
+| `setModels(list, index)` | Replace all data with a specified initial position |
 | `appendModels(list)` | Append data (pagination) |
-| `switchResolution(resolution, type)` | Switch resolution |
+| `switchResolution(resolution, type)` | Switch resolution (global / current / by index) |
+| `getCurrentModel()` | Get the currently playing video source |
+| `getDataManager()` | Get the data manager (`removeData`, `addData`, `replaceData`, `getCurrentIndex`, ...) |
+| `setVodStrategy(strategy)` | Set the VOD playback strategy (`TUIPlayerVodStrategy`) |
+| `pausePreload()` / `resumePreload()` | Pause / resume all preload tasks |
+| `setUserInputEnabled(enabled)` | Enable or disable list swiping |
+| `setPageScroller(scroller)` / `setItemAnimator(animator)` | Customize scroll speed / list animations |
+| `release()` | Destroy the view and release resources |
+
+### 2.5 VOD Strategy Configuration
+
+```java
+TUIPlayerVodStrategy strategy = new TUIPlayerVodStrategy.Builder()
+    .setPreloadCount(3)
+    .setPreDownloadSize(1)
+    .setPreLoadBufferSize(0.5f)
+    .setMaxBufferSize(10)
+    .setPreferredResolution(720 * 1280)
+    .setProgressInterval(500)
+    .setRenderMode(0)
+    .setExtInfo(extInfoMap)
+    .setMediaType(TXVodConstants.MEDIA_TYPE_FILE_VOD)
+    .enableAutoBitrate(true)
+    .setResumeMode(TUIConstants.TUIResumeMode.RESUME_LAST)
+    .setDisplayViewFactory(displayViewFactory)
+    .setEnableAccurateSeek(true)
+    .setAudioNormalization(TXVodConstants.AUDIO_NORMALIZATION_STANDARD)
+    .setPrePlayStrategy(TUIPrePlayStrategyNext)
+    .setSuperResolutionMode(TUIConstants.TUISuperResolution.SUPER_RESOLUTION_ASR)
+    .setRetryCount(3)
+    .build();
+mSuperShortVideoView.setVodStrategy(strategy);
+```
 
 ---
 
@@ -540,6 +580,8 @@ config.put(TXVodConstants.PLAYER_OPTION_PARAM_MODULE_VR_ENABLE_SENSOR, false);
 config.put(TXVodConstants.PLAYER_OPTION_PARAM_MODULE_VR_FOV, 90.0f);
 // Set gesture swipe sensitivity
 config.put(TXVodConstants.PLAYER_OPTION_PARAM_MODULE_VR_ANGLE_RATE, 0.2f);
+// Set rotation XY angle slope threshold
+config.put(TXVodConstants.PLAYER_OPTION_PARAM_MODULE_VR_ANGLE_SLOPE_THRESHOLD, 0.3f);
 
 // Apply configuration
 mVodPlayer.setStringOption(TXVodConstants.PLAYER_OPTION_PARAM_MODULE_CONFIG, config);
@@ -597,7 +639,7 @@ NSMutableDictionary *vrconfig = [NSMutableDictionary dictionary];
 ```java
 @Override
 public void onPlayEvent(TXVodPlayer player, int event, Bundle param) {
-    if (event == TXLiveConstants.PLAYER_OPTION_EVT_ANGLES) { // 8001
+    if (event == TXVodConstants.PLAYER_OPTION_EVT_ANGLES) { // 8001
         if (param != null) {
             float angleX = param.getFloat(TXVodConstants.PLAYER_OPTION_EVT_KEY_ANGLE_X);
             float angleY = param.getFloat(TXVodConstants.PLAYER_OPTION_EVT_KEY_ANGLE_Y);
@@ -617,6 +659,18 @@ public void onPlayEvent(TXVodPlayer player, int event, Bundle param) {
     }
 }
 ```
+
+### 6.6 VR Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `PLAYER_OPTION_PARAM_MODULE_TYPE_NONE` | 0 | Disable super-resolution and VR |
+| `PLAYER_OPTION_PARAM_MODULE_TYPE_SR` | 1 | Super-resolution |
+| `PLAYER_OPTION_PARAM_MODULE_TYPE_VR_PANORAMA` | 11 | VR panorama (monocular) |
+| `PLAYER_OPTION_PARAM_MODULE_TYPE_VR_BINOCULAR` | 12 | VR panorama (binocular) |
+| `PLAYER_OPTION_PARAM_MODULE_VR_DO_ROTATE` | `"MONET_AC_DO_ROTATE"` | Apply a view-angle rotation |
+| `PLAYER_OPTION_EVT_ANGLES` | 8001 | View angle changed |
+| `PLAYER_OPTION_EVT_KEY_ANGLE_X` / `PLAYER_OPTION_EVT_KEY_ANGLE_Y` | `"ANGLE_X"` / `"ANGLE_Y"` | Horizontal / vertical rotation angle keys |
 
 ---
 
@@ -730,12 +784,12 @@ NSMutableDictionary *extInfoMap = [NSMutableDictionary dictionary];
 
 ## 8. Feature Comparison
 
-| Feature | Android | iOS | Flutter | Web |
-|---------|---------|-----|---------|-----|
-| Short Video Component | ✓ | ✓ | ✓ | ✗ |
-| Picture-in-Picture | ✓ | ✓ (Premium) | ✓ | ✗ |
-| VR Playback | ✓ | ✓ | ✗ | ✓ (Premium) |
-| TSR (Super-Resolution) | ✓ | ✓ | ✗ | ✗ |
+| Feature | Android | iOS | Flutter | Web | HarmonyOS |
+|---------|---------|-----|---------|-----|-----------|
+| Short Video Component | ✓ (Premium) | ✓ (Premium) | ✓ (Premium) | ✗ | ✗ |
+| Picture-in-Picture | ✓ (Premium) | ✓ (Premium) | ✓ (Premium) | ✗ | ✗ |
+| VR Playback | ✓ (Premium) | ✓ (Premium) | ✗ | ✓ (Premium) | ✗ |
+| TSR (Super-Resolution) | ✓ (Premium) | ✓ (Premium) | ✗ | ✗ | ✗ |
 
 ---
 

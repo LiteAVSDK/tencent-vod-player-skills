@@ -2,17 +2,17 @@
 
 ## Overview
 
-The Player SDK is divided into **Mobile** and **Web** editions, each with independent authorization and billing. Before use, you need to purchase a License and bindproj it to a specific application (by package name for Mobile) or domain (for Web). The core credentials are **License URL** and **License Key**, which must be passed in during SDK initialization.
+The Player SDK is divided into **Mobile** and **Web** editions, each with independent authorization and billing. Before use, you need to purchase a License and bind it to a specific application (by package name for Mobile) or domain (for Web). After binding, the console issues the core credentials **License URL** and **License Key**, which must be passed in during SDK initialization. One Tencent Cloud account generates only one unique License URL + Key pair, which does not change when Licenses are added, renewed or expired.
 
 > **Important**: Starting from version 10.1, you must purchase a Player License to unlock the video playback module for VOD and live playback capabilities. Starting from version 10.7, playback will fail (black screen) unless a License is configured.
 
-> **Note**: Live License and UGSV (User-Generated Short Video) License also include the Standard Edition capabilities of the Player Mobile SDK.
+> **Note**: Starting from version 10.1, Live License and UGSV (User-Generated Short Video) License also include the Standard Edition capabilities of the Player Mobile SDK.
 
 ---
 
 ## Mobile License
 
-The Mobile License is divided into **Standard Edition** and **Premium Edition**, with the authorization unit being the application package name (Package Name / Bundle ID).
+The Mobile License is divided into **Standard Edition** and **Premium Edition**. The authorization unit is the application: provide any one of `Package Name`, `Bundle ID` or `Bundle Name` when creating the License.
 
 ### License Edition Comparison
 
@@ -26,7 +26,7 @@ The Mobile License is divided into **Standard Edition** and **Premium Edition**,
 
 **Standard Edition:**
 - **Direct Purchase**: 12 CNY/year
-- **Traffic Package Gift**: Free when purchasing CSS (100GB/500GB/1TB/5TB) or VOD (100GB/500GB/1TB/5TB) traffic packages
+- **Traffic Package Gift**: CSS traffic packages 100GB / 500GB / 1TB / 5TB cost 26 / 128 / 248 / 1200 CNY; VOD traffic packages 100GB / 500GB / 1TB / 5TB cost 19 / 88 / 175 / 869 CNY. Each grants one year of the Mobile Standard Edition License
 
 **Premium Edition:**
 - **Direct Purchase**: 899 CNY/month
@@ -37,18 +37,18 @@ Go to [RT-Cube Console](https://console.cloud.tencent.com/vcube/mobile):
 
 **Method 1: Create a new official application**
 1. Click "Create Official License"
-2. Enter App Name, Package Name, and Bundle ID
-3. Select the Player License type (Standard/Premium)
-4. Bindproj the purchased License resource and create
+2. Enter `App Name` and provide any one of `Package Name`, `Bundle ID` or `Bundle Name`; confirm they match the package information submitted to the app store, because a formal License cannot be modified once submitted
+3. Select the Player License type (Standard / Premium) and click Next
+4. Bind the purchased License resource and create. After creation, missing package-name fields can still be added via "Add Package Name" on the application card
 
 **Method 2: Unlock features for an existing application**
 1. Select an existing official application and click "Unlock New Feature"
-2. Select Player License and bindproj the resource
+2. Select Player License, bind the resource and confirm
 
 ### Updating Validity (Renewal)
 
 **Standard Edition (yearly renewal):**
-- **Obtained via traffic package**: Can only update validity by "Selecting another License resource to replace"
+- **Obtained via traffic package**: Can only update validity by "Select another License resource to replace"
 - **Obtained via direct purchase**: Supports "Renew current License" or "Select another License resource to replace"
 - **Renewal rule**: If renewed more than 7 days after expiration, validity becomes "payment date + renewal period"
 
@@ -160,6 +160,23 @@ String licenceURL = ""; // Your licence url
 String licenceKey = ""; // Your licence key
 
 SuperPlayerPlugin.setGlobalLicense(licenceURL, licenceKey);
+```
+
+### HarmonyOS Platform
+
+Import `liteavsdk` and configure the License before creating the player:
+
+```typescript
+import { getV2TXLivePremierShareInstance, V2TXLivePremierObserver } from 'liteavsdk';
+
+const observer: V2TXLivePremierObserver = {
+  onLicenceLoaded: (result: number, msg: string) => {
+    console.info(`onLicenceLoaded: result=${result}, msg=${msg}`);
+  }
+};
+
+getV2TXLivePremierShareInstance(getContext()).addObserver(observer);
+getV2TXLivePremierShareInstance(getContext()).setLicence('<Your licenseUrl>', '<Your key>');
 ```
 
 ### Viewing License Information

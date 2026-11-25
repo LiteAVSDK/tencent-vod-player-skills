@@ -17,6 +17,8 @@ The global control class for the player, responsible for License configuration, 
 | `setLicenseFlexibleValid(bool enabled)` | Enable License flexible validation |
 | `setDrmProvisionEnv(TXDrmProvisionEnv env)` | Set the DRM certificate environment |
 | `getLiteAVSDKVersion()` | Get the SDK version number |
+| `releasePlayer(int? playerId)` | Release the resources of a specific player |
+| `setSDKListener({FTXLicenceLoadedListener? licenceLoadedListener})` | Listen for License verification results |
 
 ### System Interaction
 
@@ -30,6 +32,8 @@ The global control class for the player, responsible for License configuration, 
 | `abandonAudioFocus()` | Release audio focus | **Android only** |
 | `isDeviceSupportPip()` | Check if the device supports Picture-in-Picture | Android/iOS |
 | `startVideoOrientationService()` | Start gravity sensor monitoring (for orientation switching) | **Android only** |
+| `restorePageBrightness()` | Restore the page brightness | Android/iOS |
+| `registerSysBrightness(bool isRegister)` | Enable/disable system brightness monitoring (use with `onExtraEventBroadcast`) | Android/iOS |
 
 ---
 
@@ -50,6 +54,7 @@ Used to control Video on Demand (VOD) playback, state management, and advanced f
 | `seekToPdtTime(int timeMs)` | Seek to a specific HLS PDT time point |
 | `setRate(double rate)` | Set playback speed (0.5~3.0) |
 | `setAutoPlay({bool isAutoPlay})` | Set whether to auto-play |
+| `setIsAutoPlay({bool? isAutoPlay})` | API-doc name for the auto-play switch |
 
 ### Playback State and Properties
 
@@ -65,6 +70,12 @@ Used to control Video on Demand (VOD) playback, state management, and advanced f
 | `getHeight()` | Get video height |
 | `setPlayerView(int viewId)` | Bind the video rendering view |
 | `dispose()` | Release controller resources |
+| `setStartTime(double startTime)` | Set the start position before `startVodPlay` |
+| `setRequestAudioFocus(bool focus)` | Request audio focus (Android) |
+| `getBufferDuration()` | Get the buffered duration |
+| `getPlayableDuration()` | Get the playable duration |
+| `setToken(String? token)` | Set the HLS encryption token |
+| `isLoop()` | Get the current loop playback state |
 
 ### Multi-Bitrate and Resolution
 
@@ -72,6 +83,7 @@ Used to control Video on Demand (VOD) playback, state management, and advanced f
 |--------|-------------|
 | `getSupportedBitrates()` | Get the list of supported bitrates |
 | `setBitrateIndex(int index)` | Switch resolution (index=-1 for adaptive) |
+| `getBitrateIndex()` | Get the currently configured bitrate index |
 
 ### Picture-in-Picture
 
@@ -114,6 +126,8 @@ Used to control Video on Demand (VOD) playback, state management, and advanced f
 | `enableTRTC(bool isEnable)` | Enable/disable TRTC connection |
 | `publishVideo()` | Push the player video stream to a TRTC room |
 | `publishAudio()` | Push the player audio stream to a TRTC room |
+| `unpublishVideo()` | Stop pushing the video stream to the TRTC room |
+| `unpublishAudio()` | Stop pushing the audio stream to the TRTC room |
 
 ### Decoding Control
 
@@ -126,6 +140,9 @@ Used to control Video on Demand (VOD) playback, state management, and advanced f
 | Method | Description |
 |--------|-------------|
 | `setConfig(FTXVodPlayConfig config)` | Set the player configuration |
+| `setStringOption(String key, Object value)` | Set extended string options (e.g. HEVC backup URL) |
+| `setRenderMode(FTXPlayerRenderMode renderMode)` | Set the video fill mode (12.5.0+) |
+| `reDraw()` | Force a redraw of the current frame (Android, 12.6.0+) |
 
 ---
 
@@ -154,6 +171,8 @@ _controller.onPlayerEventBroadcast.listen((event) {
 | `TXVodPlayEvent.PLAY_EVT_VOD_LOADING_END` | Buffering ended |
 | `TXVodPlayEvent.PLAY_EVT_CHANGE_RESOLUTION` | Video resolution changed |
 | `TXVodPlayEvent.PLAY_EVT_RCV_FIRST_I_FRAME` | First I-frame received |
+| `TXVodPlayEvent.VOD_PLAY_EVT_VOD_PLAY_FIRST_VIDEO_PACKET` | First video packet received (12.0+) |
+| `TXVodPlayEvent.EVENT_SUBTITLE_DATA` | Subtitle text data (`EXTRA_SUBTITLE_DATA`) |
 
 **Progress Event Parameters:**
 
@@ -197,6 +216,7 @@ A playback state listener stream, returning `TXPlayerState` enum values:
 | `buffering` | Buffering |
 | `stopped` | Stopped |
 | `failed` | Playback failed |
+| `disposed` | Controller released |
 
 ---
 
@@ -218,6 +238,10 @@ Used to control live stream playback. The functionality is similar to VOD but op
 | `setVolume(int volume)` | Set volume |
 | `setPlayerView(int viewId)` | Bind the video rendering view |
 | `dispose()` | Release controller resources |
+| `isPlaying()` | Whether playback is in progress |
+| `setAppID(int appId)` | Set the appId used for cloud control |
+| `enterPictureInPictureMode(...)` | Enter PiP mode (Android live only) |
+| `setRenderMode(FTXPlayerRenderMode renderMode)` | Set the video fill mode |
 
 ### Live-Specific Features
 
@@ -226,6 +250,10 @@ Used to control live stream playback. The functionality is similar to VOD but op
 | `enableReceiveSeiMessage(bool isEnabled, int payloadType)` | Enable receiving SEI messages |
 | `snapshot()` | Take a screenshot |
 | `enableHardwareDecode(bool enable)` | Enable/disable hardware decoding |
+| `showDebugView(bool isShow)` | Show/hide the debug info overlay |
+| `setProperty(String key, Object value)` | Call a V2TXLivePlayer advanced API |
+| `getSupportedBitrate()` | Get the live stream bitrate information |
+| `setCacheParams(double minTime, double maxTime)` | Set the min/max auto-adjust cache time (seconds) |
 
 ### Local Recording
 
@@ -271,20 +299,22 @@ Manages video preloading and download tasks.
 
 | Method | Description |
 |--------|-------------|
-| `startDownload(TXVodDownloadMedialnfo mediaInfo)` | Start downloading a video |
-| `stopDownload(TXVodDownloadMedialnfo mediaInfo)` | Stop download |
+| `startDownload(TXVodDownloadMediaInfo mediaInfo)` | Start downloading a video |
+| `stopDownload(TXVodDownloadMediaInfo mediaInfo)` | Stop download |
 | `getDownloadList()` | Get the list of all download tasks |
-| `deleteDownloadMediaInfo(TXVodDownloadMedialnfo mediaInfo)` | Delete a downloaded video |
+| `deleteDownloadMediaInfo(TXVodDownloadMediaInfo mediaInfo)` | Delete a downloaded video |
 | `setDownloadObserver(FTXVodDownloadListener listener)` | Set download status and error listener |
+| `setDownloadHeaders(Map<String, String> headers)` | Set HTTP request headers for download tasks |
+| `getDownloadInfo(TXVodDownloadMediaInfo mediaInfo)` | Get the download task details for a FileId / URL source |
 
 ### FTXVodDownloadListener Callbacks
 
 ```dart
 FTXVodDownloadListener(
-  onStateChange: (int taskId, int state, TXVodDownloadMedialnfo info) {
+  onStateChange: (int taskId, int state, TXVodDownloadMediaInfo info) {
     // state: 0-Initial, 1-Downloading, 2-Paused, 3-Completed, 4-Failed
   },
-  onDownloadProgress: (int taskId, TXVodDownloadMedialnfo info) {
+  onDownloadProgress: (int taskId, TXVodDownloadMediaInfo info) {
     // Download progress callback
   },
   onDownloadError: (int taskId, int errorCode, String errorMsg) {
@@ -308,7 +338,7 @@ FTXVodPreLoadListener(
 
 ---
 
-## TXVodDownloadMedialnfo Class
+## TXVodDownloadMediaInfo Class
 
 Download media information class.
 
@@ -323,6 +353,9 @@ Download media information class.
 | `downloadSize` | `int?` | Downloaded size (bytes) |
 | `progress` | `double?` | Download progress (0.0~1.0) |
 | `speed` | `int?` | Download speed (bytes/second) |
+| `url` | `String?` | Source download URL (URL-based downloads) |
+| `playableDuration` | `int?` | Downloaded playable duration |
+| `isResourceBroken` | `bool?` | Whether the cached resource is corrupted (12.9.1+) |
 
 ---
 
@@ -364,6 +397,7 @@ FileId playback parameters.
 | `appId` | `int` | Application AppId |
 | `fileId` | `String` | File FileId |
 | `psign` | `String?` | Playback signature (hotlink protection) |
+| `url` | `String?` | Video URL (alternative to appId/fileId) |
 
 ---
 
@@ -501,8 +535,8 @@ Player component playback model.
 
 | Value | Description |
 |-------|-------------|
-| `TXDrmProvisionEnv.production` | Production environment |
-| `TXDrmProvisionEnv.staging` | Staging environment |
+| `TXDrmProvisionEnv.DRM_PROVISION_ENV_COM` | COM domain certificate provider |
+| `TXDrmProvisionEnv.DRM_PROVISION_ENV_CN` | CN domain certificate provider |
 
 ---
 

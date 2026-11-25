@@ -63,8 +63,22 @@ The player is initialized via `TCPlayer('container-id', options)`.
 | `loop` | Boolean | false | Whether to loop playback |
 | `preload` | String | "auto" | Preload strategy: "auto" / "meta" / "none" |
 | `playbackRates` | Array | [0.5, 1, 1.25, 1.5, 2] | Playback speed options |
+| `swf` | String | None | URL of the Flash player SWF file |
+| `posterImage` | Boolean | true | Whether to show the cover image |
+| `bigPlayButton` | Boolean | true | Whether to show the centered play button |
+| `language` | String | "zh-CN" | UI language: "zh-CN" / "en" |
+| `languages` | Object | None | Custom multilingual dictionary |
+| `reportable` | Boolean | true | Whether to enable data reporting |
+| `fakeFullscreen` | Boolean | false | CSS-based pseudo-fullscreen |
 
 ### 3.3 Advanced Configuration Parameters
+
+#### Configuration Objects
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `hlsConfig` | Object | hls.js startup configuration |
+| `xp2pConfig` | Object | X-P2P media acceleration configuration |
 
 #### controlBar (Control Bar Configuration)
 
@@ -73,6 +87,13 @@ Configure the visibility of each button in the control bar:
 - `progressControl`: Progress bar
 - `fullscreenToggle`: Fullscreen button
 - `QualitySwitcherMenuButton`: Resolution switcher
+- `volumePanel`: Volume control
+- `currentTimeDisplay`: Current time
+- `durationDisplay`: Total duration
+- `timeDivider`: Time separator
+- `playbackRateMenuButton`: Playback rate selector
+- `fullscreenRotate`: Screen rotation button
+- `pictureInPictureToggle`: Picture-in-Picture button
 
 #### plugins (Plugin Configuration)
 
@@ -92,10 +113,16 @@ plugins: {
   },
   
   // Playlist
-  PlayList: { list: [...] },
+  PlayList: { data: [...], title: 'text', loop: false },
+
+  // Progress bar markers
+  ProgressMarker: true,
+
+  // Context menu
+  ContextMenu: { mirror: true, statistic: true },
   
   // VR playback (requires Premium License)
-  VR: { enable: true }
+  VR: { enable: true },
 }
 ```
 
@@ -103,10 +130,14 @@ plugins: {
 
 ```javascript
 webrtcConfig: {
-  retryCount: 3,           // Reconnection attempts
-  connectTimeout: 5000,    // Connection timeout (ms)
-  receiveVideo: true,      // Whether to receive video
-  receiveAudio: true       // Whether to receive audio
+  connectRetryCount: 3,     // Reconnection attempts
+  connectRetryDelay: 1,     // Reconnection delay (seconds)
+  receiveVideo: true,       // Whether to receive video
+  receiveAudio: true,       // Whether to receive audio
+  showLog: false,           // Whether to print logs to the console
+  receiveSEI: false,        // Whether to receive SEI messages
+  fallback: true,           // Whether fallback is allowed
+  fallbackUrl: ''           // Fallback stream address
 }
 ```
 
@@ -123,6 +154,8 @@ The `player` object returned from initialization supports the following methods:
 | `play()` | None | void | Play/Resume playback |
 | `pause()` | None | void | Pause playback |
 | `dispose()` | None | void | Destroy the player |
+| `ready(function)` | Function | void | Callback after the player has finished initializing |
+| `unload()` | None | void | Stop playback and disconnect the stream (5.0.0+) |
 
 ### 4.2 Source Switching
 
@@ -146,6 +179,9 @@ player.loadVideoByID({
 |--------|-----------|--------------|-------------|
 | `currentTime(time)` | Number (optional) | Number | Get/set current playback time (seconds) |
 | `duration()` | None | Number | Get total video duration (seconds) |
+| `currentPDT(timestamp)` | Number (optional) | Number | Get/set the current PDT time |
+| `buffered()` | None | TimeRanges | Return the buffered time ranges |
+| `bufferedPercent()` | None | Number [0,1] | Return the buffered length as a percentage of the duration |
 
 ### 4.4 Volume Control
 
@@ -159,6 +195,11 @@ player.loadVideoByID({
 | Method | Parameters | Return Value | Description |
 |--------|-----------|--------------|-------------|
 | `playbackRate(rate)` | Number (optional) | Number | Get/set playback speed |
+| `poster(src)` | String (optional) | String | Get/set the cover image |
+| `width(value)` | Number (optional) | Number | Get/set player width |
+| `height(value)` | Number (optional) | Number | Get/set player height |
+| `videoWidth()` | None | Number | Get the video resolution width |
+| `videoHeight()` | None | Number | Get the video resolution height |
 
 ### 4.6 Fullscreen Control
 
@@ -166,6 +207,7 @@ player.loadVideoByID({
 |--------|-------------|
 | `requestFullscreen()` | Enter fullscreen mode |
 | `exitFullscreen()` | Exit fullscreen mode |
+| `isFullscreen()` | Return whether the player is in fullscreen mode |
 
 ### 4.7 Event Listening
 
@@ -173,6 +215,7 @@ player.loadVideoByID({
 |--------|-----------|-------------|
 | `on(type, listener)` | Event type, callback function | Listen for an event |
 | `off(type, listener)` | Event type, callback function | Remove an event listener |
+| `one(type, listener)` | Event type, callback function | Listen for an event; the handler runs at most once |
 
 ---
 
@@ -194,6 +237,19 @@ Use `player.on(type, callback)` to listen for events.
 | `loadedmetadata` | Metadata loading complete |
 | `fullscreenchange` | Triggered when fullscreen state changes |
 | `blocked` | Triggered when autoplay is blocked by the browser |
+| `loadstart` | Data loading started |
+| `durationchange` | Video duration data changed |
+| `loadeddata` | Current frame data loaded, but not enough data for the next frame |
+| `progress` | Media data received |
+| `canplay` | The player can start playing |
+| `canplaythrough` | The player expects to play through without buffering |
+| `seeking` | Seeking started |
+| `seeked` | Seeking finished |
+| `ratechange` | Playback rate changed |
+| `volumechange` | Volume or muted changed |
+| `resolutionswitching` | Resolution switch in progress |
+| `resolutionswitched` | Resolution switch completed |
+| `webrtcsei` | SEI data received (when `receiveSEI` is enabled) |
 
 ### 5.2 WebRTC-Specific Events
 
@@ -206,13 +262,21 @@ Events during WebRTC playback:
 | 1001 | Started pulling stream |
 | 1002 | Connected to server |
 | 1003 | Video playback started |
+| 1004 | Stopped pulling stream; playback ended |
 | 1005 | Connection failed, automatic reconnection initiated |
+| 1006 | Retrieved stream data is empty |
+| 1007 | Started requesting the signaling server (callback: `localSdp`) |
+| 1008 | Signaling server request succeeded (callback: `remoteSdp`) |
 | 1009 | Stream pull stalling (waiting) |
 | 1010 | Stream pull stalling recovered |
 
 #### webrtcstats
 
 Statistics data during WebRTC playback.
+
+#### webrtcsei
+
+SEI data received during WebRTC playback.
 
 #### webrtcfallback
 
@@ -244,6 +308,20 @@ Error codes returned when the `error` event is triggered:
 | 11 | VOD media data API returned no data |
 | 12 | VOD media data API returned abnormal data |
 | 10008 | Media data service could not find the corresponding data (verify appID and fileID) |
+| 403 | Hotlink protection parameter authentication failed |
+| 1001 | Video file does not exist; check `fileID` |
+| 1002 | Preview duration is invalid; it must be within the video duration |
+| 1003 | Player config `pcfg` is not unique |
+| 1004 | License has expired; check the expiration time setting |
+| 1005 | No playable adaptive bitstream found |
+| 1006 | Invalid request format |
+| 1007 | AppID does not exist |
+| 1008 | Missing hotlink protection information |
+| 1009 | `psign` verification failed |
+| 1010 | Other error |
+| 1011 | Failed to obtain the DRM license URL |
+| 1012 | Failed to obtain the DRM certificate URL |
+| 1013 | Player signature missing the `contentInfo` field |
 
 ### 6.3 HLS.js Related Errors
 
@@ -252,6 +330,16 @@ Error codes returned when the `error` event is triggered:
 | 14 | HTML5 + hls.js network error |
 | 15 | HTML5 + hls.js multimedia error |
 | 16 | HTML5 + hls.js multiplexing error |
+| 13 | No playable video data detected; transcode the video |
+| 17 | HTML5 + hls.js other error (`event.source`) |
+| 18 | Current browser does not support DRM |
+| 19 | Response data verification failed |
+| 20 | Website needs device motion permission (iOS 13+) |
+| 21 | Website needs device motion permission (iOS 12.2 ~ 13) |
+| 30 | `hls.js` failed to load |
+| 31 | WebRTC playback library (`TXLivePlayer`) failed to load |
+| 32 | `flv.js` failed to load |
+| 33 | `dash.js` failed to load |
 
 ### 6.4 License Errors
 
@@ -259,13 +347,30 @@ Error codes returned when the `error` event is triggered:
 |-----------|-------------|
 | 50 | License verification failed |
 | 51 | License expired |
-| 52-56 | License domain verification failed, etc. |
+| 52 | License domain verification failed |
+| 53 | License time verification failed |
+| 54 | Wrong License type |
+| 55 | Missing License URL |
+| 56 | Failed to fetch License data |
 
 ### 6.5 Low-Latency Live Errors
 
 | Error Code | Description |
 |-----------|-------------|
 | -2002 | Low-latency live stream pull API backend error (stream does not exist or authentication failed) |
+| -2001 | Current browser does not support this stream; choose another playback method |
+| -2003 | Playback failed; refresh the page and replay |
+| -2004 | Connection failed and the reconnection count exceeded the configured limit |
+| -2006 | Low-latency live multi-resolution smooth switching API request failed |
+
+### 6.6 Security Plugin Errors
+
+| Error Code | Description |
+|-----------|-------------|
+| 60 | Player element check failed (player DOM element tampered with or removed) |
+| 61 | API check failed (player API tampered with) |
+| 62 | Environment check failed (abnormal runtime) |
+| 63 | Environment check failed (abnormal runtime) |
 
 ---
 

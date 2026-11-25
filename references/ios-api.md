@@ -39,6 +39,8 @@ The core playback class for VOD scenarios, responsible for video playback contro
 | `enableHWAcceleration` | BOOL (default enabled) | Hardware acceleration |
 | `-setExtentOptionInfo:` | NSDictionary | Extended parameters |
 | `-setAutoMaxBitrate:` | int | Adaptive maximum bitrate |
+| `+getEncryptedPlayKey:` | NSString key | Get the hardened-encryption playback key |
+| `-refreshUrlQuery:` | NSString newUrl | Refresh URL authentication query (Premium Edition 13.6+); returns 0 success, -3 requires restart |
 
 ### 1.3 Video APIs
 
@@ -136,7 +138,7 @@ Network status callback, triggered once per second.
 ### 2.4 Subtitle Data Callback
 
 ```objective-c
--(void) onPlayer:(TXVodPlayer *)player subtitleData:(NSDictionary *)data
+-(void) onPlayer:(TXVodPlayer *)player subtitleData:(TXVodSubtitleData *)subtitleData
 ```
 
 ---
@@ -146,12 +148,14 @@ Network status callback, triggered once per second.
 ### Enum Definitions
 
 **TX_Enum_PlayerType (Player Type)**:
+
 | Value | Constant | Description |
 |-------|----------|-------------|
 | 0 | PLAYER_AVPLAYER | iOS system player |
 | 1 | PLAYER_THUMB_PLAYER | Proprietary player (default, supports software decoding) |
 
 **TX_Enum_MP4EncryptionLevel (MP4 Encryption Level)**:
+
 | Value | Constant | Description |
 |-------|----------|-------------|
 | 0 | MP4_ENCRYPTION_LEVEL_NONE | No encryption |
@@ -159,6 +163,7 @@ Network status callback, triggered once per second.
 | 2 | MP4_ENCRYPTION_LEVEL_L2 | L2 local encryption |
 
 **TX_Enum_MediaType (Media Type)**:
+
 | Value | Description |
 |-------|-------------|
 | MEDIA_TYPE_AUTO | Auto (default) |
@@ -192,6 +197,9 @@ Network status callback, triggered once per second.
 | `enableRenderProcess` | BOOL | NO | Render post-processing (TSR/VR) |
 | `keepLastFrameWhenStop` | BOOL | NO | Keep last frame after stop |
 | `preferAudioTrack` | NSString | nil | Preferred audio track on startup (Premium Edition 12.3+) |
+| `extInfoMap` | NSDictionary | nil | Extended info (subtitle text callback, HLS EXT-X-KEY ak/ai) |
+| `enableUrlRefresh` | BOOL | NO | URL auth refresh fallback (Premium Edition 13.6+) |
+| `urlRefreshHangMs` | int (ms) | 10000 | Hang time after HTTP 401/403 (Premium Edition 13.6+) |
 
 ---
 
@@ -256,8 +264,17 @@ manager.delegate = self; // Conform to TXVodDownloadDelegate protocol
 // Delete download (cannot delete while downloading)
 [manager deleteDownloadMediaInfo:mediaInfo];
 
+// Set HTTP headers for downloads (12.2+)
+[manager setHeaders:httpHeader];
+
 // Get download list (time-consuming operation, do NOT call on main thread!)
 NSArray *list = [manager getDownloadMediaInfoList];
+
+// Get download info for a FileId/URL source (time-consuming, do NOT call on main thread!)
+TXVodDownloadMediaInfo *downloadInfo = [manager getDownloadMediaInfo:sourceMediaInfo];
+
+// Delete the download file to free storage
+[manager deleteDownloadFile:mediaInfo];
 ```
 
 ### 5.3 Configuration Items
@@ -677,12 +694,16 @@ VOD image sprite parsing utility class.
 | 2026 | VOD_PLAY_EVT_RCV_FIRST_AUDIO_FRAME | First audio frame played |
 | 2030 | VOD_PLAY_EVT_VIDEO_SEI | Video SEI information |
 | 2031 | VOD_PLAY_EVT_HEVC_DOWNGRADE_PLAYBACK | HEVC downgrade playback |
+| 2033 | VOD_PLAY_EVT_URL_DENIED | URL authentication denied (13.6+) |
 | 6001 | VOD_PLAY_EVT_LOOP_ONCE_COMPLETE | One loop cycle completed |
+| 6002 | VOD_PLAY_EVT_REPORT_PLAYBACK_DATA | Playback quality statistics (13.6+) |
 
 ### 18.6 Warning Events
 
 | Event Code | Constant | Description |
 |------------|----------|-------------|
+| 2101 | PLAY_WARNING_VIDEO_DECODE_FAIL | Current video frame decoding failed |
+| 2102 | PLAY_WARNING_AUDIO_DECODE_FAIL | Current audio frame decoding failed |
 | 2103 | PLAY_WARNING_RECONNECT | Network disconnected, auto-reconnection started |
 | 2106 | PLAY_WARNING_HW_ACCELERATION_FAIL | Hardware decoding failed, switched to software decoding |
 
@@ -737,12 +758,14 @@ VOD image sprite parsing utility class.
 ### 18.10 AirPlay State & Error (System Player Only)
 
 **AirPlay State (TX_VOD_PLAYER_AIRPLAY_STATE)**:
+
 | Value | Constant | Description |
 |-------|----------|-------------|
 | 0 | TX_VOD_PLAYER_AIRPLAY_STATE_NOT_RUNNING | Not running |
 | 1 | TX_VOD_PLAYER_AIRPLAY_STATE_DID_RUNNING | Running |
 
 **AirPlay Error (TX_VOD_PLAYER_AIRPLAY_ERROR_TYPE)**:
+
 | Value | Constant | Description |
 |-------|----------|-------------|
 | 0 | TX_VOD_PLAYER_AIRPLAY_ERROR_TYPE_NONE | No error |
@@ -791,3 +814,14 @@ VOD image sprite parsing utility class.
 |-------|----------|-------------|
 | 0 | PLAYER_SYSTEM_MEDIA_PLAYER | System player |
 | 1 | PLAYER_THUMB_PLAYER | Proprietary player (supports software decoding) |
+
+### 18.16 Audio Normalization Presets
+
+| Constant | Description |
+|----------|-------------|
+| AUDIO_NORMALIZATION_OFF | Audio normalization off |
+| AUDIO_NORMALIZATION_LOW | Low preset |
+| AUDIO_NORMALIZATION_STANDARD | Standard preset |
+| AUDIO_NORMALIZATION_HIGH | High preset |
+
+Custom LUFS values in the range -70 ~ 0 are also accepted by `-setAudioNormalization:`.

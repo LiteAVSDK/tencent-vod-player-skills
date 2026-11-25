@@ -60,6 +60,9 @@ The core playback class for VOD scenarios, responsible for video playback contro
 | `setMirror(boolean mirror)` | None | Set mirror mode |
 | `setRate(float rate)` | 0.5~3.0, 1.0=normal speed | Set playback speed |
 | `setAutoMaxBitrate(int max)` | Maximum bitrate | Set adaptive bitrate upper limit |
+| `setSubtitleView(TXSubtitleView view)` | Render view | Set subtitle render view |
+| `setStringOption(String key, String value)` | Key / value | Set string options (e.g. `VOD_KEY_BACKUP_URL`, `VOD_KEY_MIMETYPE`) |
+| `refreshUrlQuery(String url)` | New URL | Refresh URL authentication query (13.6+); returns 0 on success, -3 requires restart |
 
 ### 1.5 Audio & Subtitle APIs
 
@@ -164,11 +167,16 @@ Set various player parameters before playback starts.
 | `setEncryptedMp4Level(int level)` | 0 (no encryption) | MP4 encryption level (Premium Edition 12.2+) |
 | `setPreferredAudioTrack(String name)` | - | Preferred audio track on startup (Premium Edition 12.3+) |
 | `setEnableRenderProcess(boolean)` | false | Render post-processing service (TSR/VR) |
+| `setCacheMp4ExtName(String ext)` | - | Cache file extension for MP4 |
+| `setFirstStartPlayBufferTime(int ms)` | 200 | First-buffer duration (ms) |
+| `setNextStartPlayBufferTime(int ms)` | 4000 | Re-buffer duration (ms) |
+| `setExtInfo(Map<String, Object> extInfo)` | - | Extended info (subtitle text callback, HLS EXT-X-KEY key/IV) |
+| `setEnableUrlRefresh(boolean enable)` | false | URL auth refresh fallback (Premium 13.6+) |
+| `setUrlRefreshHangMs(long ms)` | 10000 | Hang time after HTTP 401/403 in ms (Premium 13.6+) |
 
 ### Deprecated APIs
 - `setCacheFolderPath` → Use `TXPlayerGlobalSetting.setCacheFolderPath`
 - `setMaxCacheItems` → Use `TXPlayerGlobalSetting.setMaxCacheSize`
-- `setFirstStartPlayBufferTime` → Use `setMaxBufferSize` or `setMaxPreloadSize`
 
 ---
 
@@ -228,8 +236,15 @@ manager.stopDownload(downloadMediaInfo);
 // Delete download (recommended)
 manager.deleteDownloadMediaInfo(downloadMediaInfo);
 
+// Set HTTP headers for downloads (12.2+)
+manager.setHeaders(httpHeaders);
+
 // Get download list (time-consuming operation, do NOT call on main thread!)
 List<TXVodDownloadMediaInfo> list = manager.getDownloadMediaInfoList();
+
+// Get download info by FileId / by URL (time-consuming, do NOT call on main thread!)
+TXVodDownloadMediaInfo infoByFileId = manager.getDownloadMediaInfo(appId, fileId, quality);
+TXVodDownloadMediaInfo infoByUrl = manager.getDownloadMediaInfo(url);
 ```
 
 ---
@@ -283,6 +298,8 @@ Used to configure FileId download parameters.
 | `QUALITY_540P` | 540 | Standard 540P |
 | `QUALITY_720P` | 720 | HD 720P |
 | `QUALITY_1080P` | 1080 | Full HD 1080P |
+| `QUALITY_2K` | 2K | 2K quality |
+| `QUALITY_4K` | 4K | 4K quality |
 
 ### 8.2 Constructor (Recommended)
 
@@ -559,6 +576,7 @@ Used to build DRM playback information, used with `TXVodPlayer#startPlayDrm`.
 ### 18.1 Constructor
 
 ```java
+public TXPlayerDrmBuilder()
 public TXPlayerDrmBuilder(String licenseUrl, String playUrl)
 ```
 
@@ -625,12 +643,16 @@ VOD image sprite parsing utility class for displaying video thumbnails.
 | 2026 | VOD_PLAY_EVT_RCV_FIRST_AUDIO_FRAME | First audio frame played |
 | 2030 | VOD_PLAY_EVT_VIDEO_SEI | Video SEI information |
 | 2031 | VOD_PLAY_EVT_HEVC_DOWNGRADE_PLAYBACK | HEVC downgrade playback |
+| 2033 | VOD_PLAY_EVT_URL_DENIED | URL authentication denied (13.6+) |
 | 6001 | VOD_PLAY_EVT_LOOP_ONCE_COMPLETE | One loop cycle completed |
+| 6002 | VOD_PLAY_EVT_REPORT_PLAYBACK_DATA | Playback quality statistics (13.6+) |
 
 ### 20.4 Warning Events
 
 | Event Code | Constant | Description |
 |------------|----------|-------------|
+| 2101 | PLAY_WARNING_VIDEO_DECODE_FAIL | Current video frame decoding failed |
+| 2102 | PLAY_WARNING_AUDIO_DECODE_FAIL | Current audio frame decoding failed |
 | 2103 | PLAY_WARNING_RECONNECT | Network disconnected, auto-reconnection started |
 | 2106 | PLAY_WARNING_HW_ACCELERATION_FAIL | Hardware decoding failed, automatically switched to software decoding |
 
@@ -670,6 +692,16 @@ VOD image sprite parsing utility class for displaying video thumbnails.
 | NET_STATUS_NET_SPEED | Network speed |
 | NET_STATUS_VIDEO_FPS | Video frame rate |
 | NET_STATUS_VIDEO_BITRATE | Video bitrate |
+| NET_STATUS_AUDIO_BITRATE | Audio bitrate |
+| NET_STATUS_VIDEO_CACHE | Jitter buffer size |
+| NET_STATUS_SERVER_IP | Connected server IP |
+| EVT_PLAY_DURATION | Video duration |
+| EVT_PLAY_NAME | Video name |
+| EVT_DESCRIPTION | Event description |
+| EVT_PLAY_PDT_TIME_MS | PDT time (Premium 11.6+) |
+| EVT_IMAGESPRIT_WEBVTTURL | Image sprite WebVTT description URL |
+| EVT_IMAGESPRIT_IMAGEURL_LIST | Image sprite image download URLs |
+| EVT_DRM_TYPE | Encryption type |
 
 ### 20.7 Media Types
 

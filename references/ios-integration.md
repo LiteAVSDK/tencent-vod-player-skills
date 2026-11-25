@@ -218,6 +218,8 @@ _txVodPlayer.isAutoPlay = NO;  // Disable auto-play (for preloading/instant play
 
 // Audio normalization
 [_txVodPlayer setAudioNormalization:-16.0];
+[_txVodPlayer setAudioNormalization:AUDIO_NORMALIZATION_STANDARD];  // Preset: standard (Premium Edition 11.7+)
+[_txVodPlayer setAudioNormalization:AUDIO_NORMALIZATION_OFF];       // Preset: off
 
 // Loop playback
 [_txVodPlayer setLoop:YES];
@@ -271,6 +273,12 @@ _config.overlayIv = nil;                     // Encryption IV
 _config.enableRenderProcess = NO;            // Render post-processing (TSR/VR)
 _config.keepLastFrameWhenStop = NO;          // Keep last frame after stop
 _config.preferAudioTrack = nil;              // Preferred audio track on startup (Premium Edition 12.3+)
+_config.extInfoMap = extInfoMap;             // Extended info (subtitle text callback, HLS EXT-X-KEY ak/ai)
+_config.enableUrlRefresh = YES;              // URL auth refresh fallback (Premium Edition 13.6+)
+_config.urlRefreshHangMs = 10000;            // Hang time after HTTP 401/403 in ms (Premium Edition 13.6+)
+[_config setExtInfoMap:extInfoMap];
+[_config setEnableUrlRefresh:YES];
+[_config setUrlRefreshHangMs:10000];
 
 [_txVodPlayer setConfig:_config];
 ```
@@ -286,6 +294,13 @@ NSString *preloadDataPath = [documentsDirectory
 
 [TXPlayerGlobalSetting setCacheFolderPath:preloadDataPath];
 [TXPlayerGlobalSetting setMaxCacheSize:200];  // MB
+
+// HTTPDNS (10.9+)
+[TXLiveBase enableCustomHttpDNS:YES];
+[TXLiveBase sharedInstance].delegate = self;
+-(void)onCustomHttpDNS:(NSString *)hostName ipList:(NSMutableArray<NSString *> *)list {
+    // Resolve hostName synchronously and add the resolved IPs to list
+}
 ```
 
 ### 6. Screen Keep-Awake Control
@@ -340,6 +355,14 @@ _txVodPlayer.vodDelegate = self;
         // Video SEI information
     } else if (EvtID == PLAY_EVT_HIT_CACHE) {
         // Cache hit on playback start
+    } else if (EvtID == PLAY_EVT_CHANGE_ROTATION) {
+        // MP4 video rotation angle
+    } else if (EvtID == VOD_PLAY_EVT_HEVC_DOWNGRADE_PLAYBACK) {
+        // HEVC downgrade playback (12.0+)
+    } else if (EvtID == VOD_PLAY_EVT_REPORT_PLAYBACK_DATA) {
+        // Playback quality statistics (13.6+)
+    } else if (EvtID == VOD_PLAY_EVT_URL_DENIED) {
+        // URL authentication denied (2033, 13.6+); refresh via refreshUrlQuery:
     }
 
     // Warning events
@@ -347,6 +370,10 @@ _txVodPlayer.vodDelegate = self;
         // Network disconnected, auto-reconnecting
     } else if (EvtID == PLAY_WARNING_HW_ACCELERATION_FAIL) {
         // Hardware decoding failed, automatically switched to software decoding
+    } else if (EvtID == PLAY_WARNING_VIDEO_DECODE_FAIL) {
+        // Current video frame decoding failed
+    } else if (EvtID == PLAY_WARNING_AUDIO_DECODE_FAIL) {
+        // Current audio frame decoding failed
     }
 
     // Error events (negative values)
@@ -373,6 +400,12 @@ _txVodPlayer.vodDelegate = self;
     int speed = [[param objectForKey:@"NET_SPEED"] intValue];
     int width = [[param objectForKey:@"VIDEO_WIDTH"] intValue];
     int height = [[param objectForKey:@"VIDEO_HEIGHT"] intValue];
+    float cpuUsage = [[param objectForKey:@"CPU_USAGE"] floatValue];
+    int fps = [[param objectForKey:@"VIDEO_FPS"] intValue];
+    int videoBitrate = [[param objectForKey:@"VIDEO_BITRATE"] intValue];
+    int audioBitrate = [[param objectForKey:@"AUDIO_BITRATE"] intValue];
+    int jitterbuffer = [[param objectForKey:@"V_SUM_CACHE_SIZE"] intValue];
+    NSString *ip = [param objectForKey:@"SERVER_IP"];
 }
 ```
 
@@ -402,8 +435,9 @@ _txVodPlayer.vodDelegate = self;
 ### 9. Subtitle Data Callback
 
 ```objective-c
--(void) onPlayer:(TXVodPlayer *)player subtitleData:(NSDictionary *)data {
-    // data contains subtitle text content
+-(void) onPlayer:(TXVodPlayer *)player subtitleData:(TXVodSubtitleData *)subtitleData {
+    // subtitleData.subtitleData: subtitle text content
+    // subtitleData.trackIndex: current subtitle track index
 }
 ```
 
@@ -732,6 +766,12 @@ dataSource.auth = authParams;          // TXPlayerAuthParams
 dataSource.quality = TXVodQuality720P; // Quality
 dataSource.token = nil;                // Optional: DRM Token
 dataSource.templateName = nil;         // Optional: resolution template
+
+// Current FileId fields (used instead of auth for the v4 protocol)
+dataSource.appId = 1252463788;
+dataSource.fileId = @"4564972819220421305";
+dataSource.pSign = @"psignxxxx";
+// Quality enums also include TXVodQuality2K and TXVodQuality4K
 [manager startDownload:dataSource];
 
 // DRM download
@@ -743,8 +783,17 @@ dataSource.templateName = nil;         // Optional: resolution template
 // Delete download (cannot delete while downloading)
 [manager deleteDownloadMediaInfo:mediaInfo];
 
+// Set HTTP headers for downloads (12.2+)
+[manager setHeaders:httpHeader];
+
 // Get download list (time-consuming operation, do NOT call on main thread!)
 NSArray *list = [manager getDownloadMediaInfoList];
+
+// Get download info for a FileId/URL source (time-consuming, do NOT call on main thread!)
+TXVodDownloadMediaInfo *downloadInfo = [manager getDownloadMediaInfo:sourceMediaInfo];
+
+// Delete the download file to free storage
+[manager deleteDownloadFile:mediaInfo];
 ```
 
 ### 4. Download Configuration
