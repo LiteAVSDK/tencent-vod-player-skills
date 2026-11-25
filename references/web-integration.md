@@ -5,6 +5,8 @@
 - **Browser**: Modern browsers that support HTML5
 - **Protocol Support**: HTTP/HTTPS
 - **Encoding Format**: Only H.264 encoded video is supported
+- **HLS / FLV**: Some browsers require Media Source Extensions (MSE) for HLS and FLV playback
+- **WebRTC**: In browsers without WebRTC support, the player automatically converts the WebRTC address to a supported protocol
 
 ### Browser Compatibility
 
@@ -258,7 +260,7 @@ var player = TCPlayer('player-container-id', {
       type: 'text',
       content: 'Tencent Cloud',
       speed: 0.2,
-      fontSize: 16,
+      fontSize: '16px',
       color: 'rgba(255, 255, 255, 0.5)'
     }
   }
@@ -272,11 +274,13 @@ var player = TCPlayer('player-container-id', {
   licenseUrl: 'license-url',
   plugins: {
     PlayList: {
-      list: [
-        { name: 'Video 1', src: 'video1.mp4' },
-        { name: 'Video 2', src: 'video2.mp4' },
-        { name: 'Video 3', src: 'video3.mp4' }
-      ]
+      data: [
+        { fileID: '3701925921299637010', appID: '1500005696', psign: 'xxxxx', text: 'Video 1', img: 'poster1.jpg', duration: 120 },
+        { fileID: '3701925921299637011', appID: '1500005696', psign: 'xxxxx', text: 'Video 2', img: 'poster2.jpg', duration: 120 },
+        { fileID: '3701925921299637012', appID: '1500005696', psign: 'xxxxx', text: 'Video 3', img: 'poster3.jpg', duration: 120 }
+      ],
+      title: 'Playlist',
+      loop: false
     }
   }
 });
@@ -321,8 +325,8 @@ var player = TCPlayer('player-container-id', {
   }],
   licenseUrl: 'license-url',
   webrtcConfig: {
-    retryCount: 3,
-    connectTimeout: 5000
+    connectRetryCount: 3,
+    connectRetryDelay: 1
   }
 });
 
@@ -405,18 +409,35 @@ var player = TCPlayer('player-container-id', {
 4. Network issues
 
 **Solutions:**
+
 ```javascript
 player.on('error', function(e) {
   switch(e.data.code) {
-    case -1:
-      console.log('Check playback source configuration');
+    case -1:  // No available video URL detected
+      console.log('Check the playback source configuration');
       break;
-    case 50:
-    case 51:
+    case 3:   // Video decoding error
+      console.log('Transcode the source or tune hlsConfig buffer limits');
+      break;
+    case 4:   // Media resource load failure
+      console.log('Check the network, video format and CORS');
+      break;
+    case 17:  // Failed to switch DRM-encrypted videos
+      console.log('Upgrade to 5.3.4-beta.46+ or release MediaKeys manually');
+      break;
+    case 30:  // hls.js failed to load
+      console.log('Preload hls.js into window.Hls');
+      break;
+    case 50:  // License verification failed
+    case 51:  // License expired
+    case 52:  // License domain verification failed
+    case 53:  // License time verification failed
+    case 56:  // Failed to fetch License data
       console.log('Check License configuration');
       break;
-    case 4:
-      console.log('Check video format and CORS');
+    case 61:  // SafeCheck API verification failed
+    case 62:  // MSE environment detection error
+      console.log('Check for hooked APIs or use a build without the security plugin');
       break;
   }
 });

@@ -192,6 +192,13 @@ mVodPlayer.setPlayerView(mPlayerView);
 ```java
 String url = "http://1252463788.vod2.example.com/xxxxx/v.f20.mp4";
 mVodPlayer.startVodPlay(url);
+
+// Local file
+mVodPlayer.startVodPlay("/sdcard/video.mp4");
+
+// content:// URI and asset:// resources (11.8+)
+mVodPlayer.startVodPlay("content://xxx/xxx/video.mp4");
+mVodPlayer.startVodPlay("asset://video.mp4");
 ```
 
 **Method B: Play via FileId (Recommended)**
@@ -285,6 +292,9 @@ if (bitrates != null && !bitrates.isEmpty()) {
 // -1 = adaptive bitrate
 mVodPlayer.setBitrateIndex(-1);
 
+// Get current bitrate index (-1000 = never set, -1 = adaptive)
+int currentIndex = mVodPlayer.getBitrateIndex();
+
 // Limit the maximum bitrate for adaptive streaming
 mVodPlayer.setAutoMaxBitrate(maxBitrate);
 ```
@@ -308,13 +318,21 @@ config.setHeaders(customHeaders);        // Custom HTTP headers
 config.setEncryptedMp4Level(0);          // MP4 encryption level (Premium 12.2+)
 config.setPreferredAudioTrack("name");   // Preferred audio track at startup (Premium 12.3+)
 config.setEnableRenderProcess(false);    // Render post-processing (TSR/VR)
+config.setFirstStartPlayBufferTime(200);  // First-buffer duration in ms
+config.setNextStartPlayBufferTime(4000);  // Re-buffer duration in ms
+config.setExtInfo(extInfoMap);            // Extended info (subtitle text callback, HLS EXT-X-KEY key/IV)
+config.setEnableUrlRefresh(true);         // URL auth refresh fallback (Premium 13.6+)
+config.setUrlRefreshHangMs(10000);        // Hang time after HTTP 401/403 in ms (Premium 13.6+)
 mVodPlayer.setConfig(config);
+
+// HEVC adaptive downgrade (Premium 11.7+)
+mVodPlayer.setStringOption(TXVodConstants.VOD_KEY_BACKUP_URL, backupPlayUrl);
+mVodPlayer.setStringOption(TXVodConstants.VOD_KEY_MIMETYPE, TXVodConstants.VOD_PLAY_MIMETYPE_H265);
 ```
 
 **Deprecated API Reminders**:
 - `setCacheFolderPath` → Use `TXPlayerGlobalSetting.setCacheFolderPath`
 - `setMaxCacheItems` → Use `TXPlayerGlobalSetting.setMaxCacheSize`
-- `setFirstStartPlayBufferTime` → Use `setMaxBufferSize` or `setMaxPreloadSize`
 
 ### 5. Hardware Decoding
 
@@ -381,6 +399,18 @@ mVodPlayer.setVodListener(new ITXVodPlayListener() {
             case TXLiveConstants.PLAY_EVT_HIT_CACHE:
                 // Cache hit on startup
                 break;
+            case TXLiveConstants.PLAY_EVT_CHANGE_ROTATION:
+                // MP4 video rotation angle
+                break;
+            case TXVodConstants.VOD_PLAY_EVT_HEVC_DOWNGRADE_PLAYBACK:
+                // HEVC downgrade playback (11.7+)
+                break;
+            case TXVodConstants.VOD_PLAY_EVT_REPORT_PLAYBACK_DATA:
+                // Playback quality statistics (13.6+)
+                break;
+            case TXVodConstants.VOD_PLAY_EVT_URL_DENIED:
+                // URL authentication denied (2033, 13.6+); refresh via refreshUrlQuery
+                break;
         }
 
         // Warning events
@@ -388,6 +418,10 @@ mVodPlayer.setVodListener(new ITXVodPlayListener() {
             // Network disconnected, auto-reconnecting
         } else if (event == TXLiveConstants.PLAY_WARNING_HW_ACCELERATION_FAIL) {
             // Hardware decoding failed, auto-fallback to software decoding
+        } else if (event == TXLiveConstants.PLAY_WARNING_VIDEO_DECODE_FAIL) {
+            // Current video frame decoding failed
+        } else if (event == TXLiveConstants.PLAY_WARNING_AUDIO_DECODE_FAIL) {
+            // Current audio frame decoding failed
         }
 
         // Error events (negative values)
@@ -411,6 +445,9 @@ mVodPlayer.setVodListener(new ITXVodPlayListener() {
         int fps = bundle.getInt(TXLiveConstants.NET_STATUS_VIDEO_FPS);         // Video frame rate
         int bitrate = bundle.getInt(TXLiveConstants.NET_STATUS_VIDEO_BITRATE); // Video bitrate
         float cpu = bundle.getFloat(TXLiveConstants.NET_STATUS_CPU_USAGE);     // CPU usage
+        int audioBitrate = bundle.getInt(TXLiveConstants.NET_STATUS_AUDIO_BITRATE);  // Audio bitrate
+        int videoCache = bundle.getInt(TXLiveConstants.NET_STATUS_VIDEO_CACHE);      // Jitter buffer size
+        String serverIp = bundle.getString(TXLiveConstants.NET_STATUS_SERVER_IP);   // Connected server IP
     }
 });
 ```
@@ -421,6 +458,16 @@ mVodPlayer.setVodListener(new ITXVodPlayListener() {
 // Set in Application (only needs to be set once globally)
 TXPlayerGlobalSetting.setCacheFolderPath(cachePath);  // Cache directory (null = disabled)
 TXPlayerGlobalSetting.setMaxCacheSize(200);            // Max cache size in MB
+TXPlayerGlobalSetting.setDrmProvisionEnv(TXPlayerGlobalSetting.DrmProvisionEnv.DRM_PROVISION_ENV_CN);
+
+// HTTPDNS (10.9+)
+TXLiveBase.enableCustomHttpDNS(true);
+TXLiveBase.setListener(new TXLiveBaseListener() {
+    @Override
+    public void onCustomHttpDNS(String hostName, List<String> ipList) {
+        // Resolve hostName synchronously and add the resolved IPs to ipList
+    }
+});
 ```
 
 ### 8. Audio Controls
@@ -439,6 +486,17 @@ mVodPlayer.setAudioNormalization(-16.0f);
 ### 9. External Subtitles
 
 ```java
+// Set subtitle render view
+TXSubtitleView subtitleView = findViewById(R.id.subtitle_view);
+mVodPlayer.setSubtitleView(subtitleView);
+
+// Enable subtitle text callback (12.3+)
+TXVodPlayConfig subtitleConfig = new TXVodPlayConfig();
+Map<String, Object> extInfoMap = new HashMap<>();
+extInfoMap.put("450", 0);
+subtitleConfig.setExtInfo(extInfoMap);
+mVodPlayer.setConfig(subtitleConfig);
+
 // Add external subtitles (SRT/VTT)
 mVodPlayer.addSubtitleSource(subtitleUrl, "Subtitle Name", "application/x-subrip");  // SRT
 mVodPlayer.addSubtitleSource(subtitleUrl, "Subtitle Name", "text/vtt");              // VTT
@@ -494,7 +552,9 @@ mVodPlayer.snapshot(new ITXSnapshotListener() {
 ### 11. DRM Encrypted Playback (Premium Edition Only)
 
 ```java
-TXPlayerDrmBuilder builder = new TXPlayerDrmBuilder(licenseUrl, playUrl);
+// DRM playback must use a system SurfaceView Surface, not TXCloudVideoView
+mVodPlayer.setSurface(surfaceView.getHolder().getSurface());
+TXPlayerDrmBuilder builder = new TXPlayerDrmBuilder();
 builder.setDeviceCertificateUrl(provisionUrl);  // Certificate provider URL (optional for Widevine)
 builder.setKeyLicenseUrl(keyLicenseUrl);        // Decryption key URL
 builder.setPlayUrl(playUrl);                    // Playback media URL
@@ -751,8 +811,15 @@ manager.stopDownload(downloadMediaInfo);
 // Delete download
 manager.deleteDownloadMediaInfo(downloadMediaInfo);
 
+// Set HTTP headers for downloads (12.2+)
+manager.setHeaders(httpHeaders);
+
 // Get download list (time-consuming, do NOT call on the main thread!)
 List<TXVodDownloadMediaInfo> list = manager.getDownloadMediaInfoList();
+
+// Get download info by FileId / by URL (time-consuming, do NOT call on the main thread!)
+TXVodDownloadMediaInfo infoByFileId = manager.getDownloadMediaInfo(appId, fileId, quality);
+TXVodDownloadMediaInfo infoByUrl = manager.getDownloadMediaInfo(url);
 ```
 
 ### 3. Download Quality Constants (TXVodDownloadDataSource)
@@ -766,6 +833,8 @@ List<TXVodDownloadMediaInfo> list = manager.getDownloadMediaInfoList();
 | `QUALITY_540P` | 540 | SD 540P |
 | `QUALITY_720P` | 720 | HD 720P |
 | `QUALITY_1080P` | 1080 | FHD 1080P |
+| `QUALITY_2K` | 2K | 2K quality |
+| `QUALITY_4K` | 4K | 4K quality |
 
 ### 4. Download Media Info (TXVodDownloadMediaInfo)
 

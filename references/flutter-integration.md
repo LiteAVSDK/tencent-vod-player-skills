@@ -6,12 +6,12 @@
 
 | Item | Requirement |
 |------|-------------|
-| Flutter Version | 3.0 or above |
+| Flutter Version | 3.27.4 or above |
 | Android Studio | 3.5 or above |
-| Xcode | 11.0 or above |
+| Xcode | 16.0 or above |
 | macOS | 10.11 or above |
-| Minimum Android Version | API 19 (Android 4.4) |
-| Minimum iOS Version | iOS 9.0+ |
+| Minimum Android Version | API 21 (Android 5.0) |
+| Minimum iOS Version | iOS 13.0+ |
 
 > **Note**: The iOS simulator is currently not supported for debugging. Use a real device for development and testing. Ensure that the project has a valid developer signing certificate configured.
 
@@ -113,7 +113,7 @@ Reference it in the `<application>` tag of `AndroidManifest.xml`:
 #### 3. Gradle Configuration
 
 - Ensure `mavenCentral()` is used
-- Modify `build.gradle` to set `minSdkVersion` to **19** or above
+- Modify `build.gradle` to set `minSdkVersion` to **21** or above
 - If Picture-in-Picture (PiP) capability is needed, set `compileSdkVersion` and `targetSdkVersion` to **31** or above
 
 #### 4. Resolve Manifest Conflicts
@@ -185,7 +185,7 @@ _controller.onPlayerEventBroadcast.listen((event) async {
 });
 ```
 
-### Add Layout and Bindx View
+### Add Layout and Bind View
 
 Add `TXPlayerVideo` to the Widget tree, and bind the view to the Controller via `viewId`:
 
@@ -252,6 +252,13 @@ void dispose() {
 | `_controller.setLoop(true)` | Enable loop playback |
 | `_controller.setRate(1.2)` | Set playback speed (e.g., 1.2x) |
 | `_controller.setMute(true)` | Enable mute |
+| `_controller.isLoop()` | Get current loop playback state |
+| `_controller.setStartTime(seconds)` | Set start position before `startVodPlay` |
+| `_controller.getWidth()` / `getHeight()` | Get video resolution after `PLAY_EVT_VOD_PLAY_PREPARED` |
+| `_controller.setRenderMode(FTXPlayerRenderMode.ADJUST_RESOLUTION)` | Set video fill mode (12.5.0+) |
+| `_controller.setStringOption(key, value)` | Set extended string options, e.g. HEVC backup URL (11.9.1+) |
+| `_controller.setPlayConfig(config)` | Apply `FTXVodPlayConfig` |
+| `_controller.getSubtitleTrackInfo()` / `getAudioTrackInfo()` | Get subtitle / audio track lists |
 
 ### Resolution Switching and Bitrate Control
 
@@ -299,6 +306,28 @@ controller.startVodPlay(nextVideoUrl); // Pre-load
 await controller.resume(); // Resume pre-loaded video playback
 ```
 
+### Video Pre-download
+
+```dart
+// Preload by URL (without creating a player instance)
+int taskId = await TXVodDownloadController.instance.startPreLoad(
+  url, 3, 1920 * 1080,
+  onCompleteListener: (int taskId, String url) {},
+  onErrorListener: (int taskId, String url, int code, String msg) {},
+);
+
+// Preload by FileId (do NOT call on the main thread)
+TXVodDownloadController.instance.startPreload(
+  TXPlayInfoParams(appId: 0, fileId: "your fileId"), 1, 720 * 1080,
+  onStartListener: (taskId, fileId, url, params) {},
+  onCompleteListener: (taskId, url) {},
+  onErrorListener: (taskId, url, code, msg) {},
+);
+
+// Cancel preload
+TXVodDownloadController.instance.stopPreLoad(taskId);
+```
+
 ### Local Video Caching
 
 Used in short video scenarios to avoid repeated bandwidth consumption:
@@ -314,12 +343,12 @@ Supports downloading videos online for offline playback, including encrypted dow
 
 ```dart
 // Start download (FileId method)
-TXVodDownloadMedialnfo medialnfo = TXVodDownloadMedialnfo();
-medialnfo.dataSource = TXVodDownloadDataSource();
-medialnfo.dataSource!.appId = 1252463788;
-medialnfo.dataSource!.fileId = "your fileId";
-medialnfo.dataSource!.quality = DownloadQuality.QUALITY_720P;
-TXVodDownloadController.instance.startDownload(medialnfo);
+TXVodDownloadMediaInfo mediaInfo = TXVodDownloadMediaInfo();
+mediaInfo.dataSource = TXVodDownloadDataSource();
+mediaInfo.dataSource!.appId = 1252463788;
+mediaInfo.dataSource!.fileId = "your fileId";
+mediaInfo.dataSource!.quality = DownloadQuality.QUALITY_720P;
+TXVodDownloadController.instance.startDownload(mediaInfo);
 ```
 
 #### Download Status Listener
@@ -327,10 +356,10 @@ TXVodDownloadController.instance.startDownload(medialnfo);
 ```dart
 TXVodDownloadController.instance.setDownloadObserver(
   FTXVodDownloadListener(
-    onStateChange: (int taskId, int state, TXVodDownloadMedialnfo info) {
+    onStateChange: (int taskId, int state, TXVodDownloadMediaInfo info) {
       // state: 0-Initial, 1-Downloading, 2-Paused, 3-Completed, 4-Failed
     },
-    onDownloadProgress: (int taskId, TXVodDownloadMedialnfo info) {
+    onDownloadProgress: (int taskId, TXVodDownloadMediaInfo info) {
       // Progress callback
     },
     onDownloadError: (int taskId, int errorCode, String errorMsg) {
@@ -344,10 +373,16 @@ TXVodDownloadController.instance.setDownloadObserver(
 
 ```dart
 // Get all download tasks
-List<TXVodDownloadMedialnfo> list = await TXVodDownloadController.instance.getDownloadList();
+List<TXVodDownloadMediaInfo> list = await TXVodDownloadController.instance.getDownloadList();
 
 // Delete a downloaded video
-TXVodDownloadController.instance.deleteDownloadMediaInfo(medialnfo);
+TXVodDownloadController.instance.deleteDownloadMediaInfo(mediaInfo);
+
+// Stop a download (supports resumable downloads)
+TXVodDownloadController.instance.stopDownload(mediaInfo);
+
+// Get download info for a FileId / URL source
+TXVodDownloadMediaInfo downloadInfo = await TXVodDownloadController.instance.getDownloadInfo(mediaInfo);
 ```
 
 ### External Subtitles
@@ -363,6 +398,13 @@ controller.selectTrack(trackIndex);
 
 // Deselect subtitle track
 controller.deselectTrack(trackIndex);
+
+// Listen for subtitle text data (render it in your own UI)
+controller.onPlayerEventBroadcast.listen((event) async {
+  if (event["event"] == TXVodPlayEvent.EVENT_SUBTITLE_DATA) {
+    String subtitleDataStr = event[TXVodPlayEvent.EXTRA_SUBTITLE_DATA] ?? "";
+  }
+});
 ```
 
 ### Picture-in-Picture (PiP)
@@ -604,11 +646,11 @@ The player component is open-source. Since the UI component and Flutter player p
 | Blurry screen when switching between multiple players | Call the `dispose` method when destroying the player |
 | Flutter dependency issues | Run `flutter doctor` and `flutter pub get` to check the environment |
 | Android Manifest label conflict | Add `tools:replace="android:label"` |
-| Android minSdkVersion error | Set `minSdkVersion` to 19 or above |
+| Android minSdkVersion error | Set `minSdkVersion` to 21 or above |
 | Audio plays but no video | Version mismatch between `superplayer_widget` (UI component) and `super_player` (underlying plugin); check and unify version numbers |
 | Crash after obfuscation during packaging | Add `-keep class com.tencent.**{*;}` to the obfuscation configuration |
 | Local video cannot play | Check if the local path is correct and if storage read permission is granted |
-| Flutter version compatibility (texture rendering issue) | Upgrade Flutter to version 3.7.0 or above |
+| Flutter version compatibility (texture rendering issue) | Upgrade Flutter to version 3.27.4 or above |
 | Disable automatic screen rotation | Modify the component source code or lock to portrait mode at the application entry: `SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp])` |
 
 ### Extracting Runtime Logs

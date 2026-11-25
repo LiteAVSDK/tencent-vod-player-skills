@@ -10,8 +10,9 @@ The core playback class for VOD scenarios, responsible for video playback contro
 
 | Method | Parameters | Return Value | Description |
 |--------|-----------|--------------|-------------|
-| `startVodPlay(params)` | params: TXPlayInfoParams | number | Start playback via fileId or URL |
-| `stopPlay(clearLastImg)` | clearLastImg: boolean | void | Stop playback; optionally clear the last frame |
+| `constructor(context)` | context: Context | TXVodPlayer | Create a VOD player instance |
+| `startVodPlay(params)` | params: TXPlayInfoParams | void | Start playback via fileId or URL |
+| `stopPlay(clearLastImg)` | clearLastImg: boolean | number | Stop playback; optionally clear the last frame |
 | `isPlaying()` | None | boolean | Returns whether playback is in progress |
 | `pause()` | None | void | Pause playback, retaining the last frame |
 | `resume()` | None | void | Resume playback |
@@ -44,7 +45,7 @@ The core playback class for VOD scenarios, responsible for video playback contro
 
 | Method | Parameters | Description |
 |--------|-----------|-------------|
-| `snapshotAsync(callback)` | Callback function | Asynchronously capture the current frame (time-consuming operation) |
+| `snapshotAsync(uiContext, nativeXComponentID)` | UIContext, string (XComponent ID) | Asynchronously capture the current frame; the result is delivered via `onSnapshotComplete` |
 | `setRate(rate)` | number (0.5~3.0) | Set playback speed |
 | `getSupportedBitrates()` | None | Get HLS supported bitrate list; returns TXBitrateItem[] |
 | `getBitrateIndex()` | None | Get the current bitrate index |
@@ -71,7 +72,7 @@ The core playback class for VOD scenarios, responsible for video playback contro
 
 ---
 
-## 2. ITXVodPlayListener (Playback Event Callback)
+## 2. ITXVodPlayCallback (Playback Event Callback)
 
 The callback listener interface for playback events and network status.
 
@@ -406,6 +407,12 @@ let taskId = preloadManager.startPreloadUrl(
 | `VOD_PLAY_EVT_VOD_PLAY_PREPARED` | 2013 | Player is ready |
 | `VOD_PLAY_EVT_VOD_LOADING_END` | 2014 | Buffering ended |
 | `VOD_PLAY_EVT_SEEK_COMPLETE` | 2019 | Seek completed |
+| `VOD_PLAY_EVT_FIRST_VIDEO_PACKET` | 2017 | First video packet received |
+| `VOD_PLAY_WARNING_RECONNECT` | 2103 | Network disconnected, auto-reconnecting |
+| `VOD_PLAY_WARNING_HW_ACCELERATION_FAIL` | 1103 | Hardware decoding failed, software fallback |
+| `VOD_PLAY_ERR_NET_DISCONNECT` | -2301 | Network disconnected after retries |
+| `VOD_PLAY_ERR_HLS_KEY` | -2305 | HLS decryption key retrieval failed |
+| `VOD_PLAY_EVT_SELECT_TRACK_SUCCESS` | - | Track switch succeeded |
 
 ### 10.2 Network Status Constants
 
@@ -446,6 +453,28 @@ let taskId = preloadManager.startPreloadUrl(
 | `ERR_PLAY_GET_PLAYINFO_FAIL` | -2302 | Failed to get playback info |
 | `ERR_PLAY_PLAYURL_EMPTY` | -2303 | Playback URL is empty |
 | `ERR_PLAY_NO_SUPPORT_FORMAT` | -2304 | Unsupported playback format |
+
+### 10.6 Event Parameter and Misc Constants
+
+| Constant | Description |
+|----------|-------------|
+| `EVT_PLAY_PROGRESS_MS` | Current playback progress (milliseconds) |
+| `EVT_PLAY_DURATION_MS` | Total duration (milliseconds) |
+| `EVT_PLAYABLE_DURATION_MS` | Playable duration (milliseconds) |
+| `EVT_PARAM1` / `EVT_PARAM2` | Video width / height on resolution change |
+| `EVT_KEY_SELECT_TRACK_INDEX` | Selected track index |
+| `EVT_PLAY_COVER_URL` | Video cover URL |
+| `EVT_PLAY_URL` | Video playback URL |
+| `EVT_PLAY_DURATION` | Video duration |
+| `EVT_TIME` / `EVT_UTC_TIME` | Event time / UTC time |
+| `EVT_DESCRIPTION` | Event description |
+| `EVT_PLAY_NAME` | Video name |
+| `EVT_IMAGESPRIT_WEBVTTURL` | Image sprite WebVTT description URL |
+| `EVT_IMAGESPRIT_IMAGEURL_LIST` | Image sprite image download URLs |
+| `EVT_DRM_TYPE` | Encryption type |
+| `INDEX_AUTO` | -1; enables HLS adaptive bitrate |
+| `VOD_PLAY_MIMETYPE_TEXT_SRT` | SRT subtitle MIME type |
+| `VOD_PLAY_MIMETYPE_TEXT_VTT` | VTT subtitle MIME type |
 
 ---
 

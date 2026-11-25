@@ -14,14 +14,15 @@ Yes. If you need to use Player SDK version 10.1 or later, you must purchase a Pl
 
 **Q: Is there a standalone purchase option for the Player License?**
 
-Yes. You can purchase 100GB, 500GB, 1TB, or 5TB CSS/VOD traffic packages, which typically include a one-year Player Mobile Standard Edition License. You can also directly purchase a standalone Player License.
+Yes. You can purchase a standalone Player License, or purchase 100GB, 500GB, 1TB, or 5TB CSS/VOD traffic packages, which include a one-year Player Mobile Standard Edition License.
 
 **Q: Can existing Licenses of other types unlock the Player SDK video playback feature?**
 
-Yes. The following Licenses can all authorize the Player SDK Mobile Standard Edition video playback feature (only one is needed):
-- **Live License**: Included with CSS traffic packages (10TB/50TB/200TB/1PB) or standalone Live License
-- **UGSV License**: Included with VOD traffic packages (10TB/50TB/200TB/1PB) or standalone UGSV License
-- **Player License**: Included with CSS/VOD traffic packages or standalone Player License
+Yes. Any License whose authorized modules include **video playback** can unlock the Player SDK Mobile Standard Edition video playback feature (only one is needed):
+
+- **Live License** (formerly Live Push License): Included with CSS traffic packages (10TB/50TB/200TB/1PB) or a standalone Live License
+- **UGSV License**: Included with VOD traffic packages (10TB/50TB/200TB/1PB) or a standalone UGSV License
+- **Player License**: Included with CSS/VOD traffic packages or a standalone Player License
 
 ---
 
@@ -36,7 +37,7 @@ Yes. The following Licenses can all authorize the Player SDK Mobile Standard Edi
 
 **Q: Can the trial License change the Android Package Name and iOS Bundle ID?**
 
-Yes. Go to the RT-Cube Console > Mobile License / Web License, find the target trial License, and click Edit to modify.
+Yes. Go to the RT-Cube Console > [Mobile License](https://console.cloud.tencent.com/vcube/mobile) / [Web License](https://console.cloud.tencent.com/vcube/web?tab=player), find the target trial License, and click Edit to modify.
 
 **Q: Can the official License change the Android Package Name and iOS Bundle ID?**
 
@@ -45,6 +46,10 @@ No. The Package Name and Bundle ID of an official License cannot be modified. Pl
 **Q: Can the License be modified?**
 
 The Player License validity can be extended through renewal, but the package name information (Package Name / Bundle ID) cannot be modified.
+
+**Q: Can a Premium License be downgraded to a Standard License?**
+
+Not in place. Cancel auto-renewal for the Premium License, wait until it expires, then create a Standard License. Switching may interrupt live business; open a support ticket if assistance is needed.
 
 ---
 
@@ -116,10 +121,10 @@ For security reasons, there is no interface for the app to directly pull media. 
 
 **Q: When coexisting with TRTC (Tencent Real-Time Communication), the video playback volume becomes low?**
 
-SDK version 10.0 and above provides the `attachTRTC` method. Call this method to bindproj before creating the player for video playback:
+SDK version 10.0 and above provides the `attachTRTC` method. Call it to bind TRTC before creating the player and starting playback:
 
-- **iOS**: `[_txVodPlayer attachTRTC:trtcCloud];`
-- **Android**: `mVodPlayer.attachTRTC(trtcCloud);`
+- **iOS**: `[_txVodPlayer attachTRTC:trtcCloud];` then `[_txVodPlayer startPlay:url];`
+- **Android**: `mVodPlayer.attachTRTC(trtcCloud);` then `mVodPlayer.startPlay(url);`
 
 ---
 
@@ -134,15 +139,25 @@ You need to set `localhost` as bypass proxy in the device's HTTP proxy settings:
 
 **Q: Black screen (no video) during playback?**
 
-Check whether the `SurfaceView` or `TextureView` has been successfully bindproj to the `TXVodPlayer` object.
+Check whether the `SurfaceView` or `TextureView` has been successfully bound to the `TXVodPlayer` object.
 
 ---
 
 **Q: How to reduce APK size?**
 
-1. Remove old cache SO files (e.g., `libijkhlscache-master.so`) unless you need to play files cached by older versions
-2. Only package `armeabi-v7a` and `arm64-v8a` architectures
-3. Configure `packagingOptions` in `build.gradle` to exclude unnecessary architectures
+If you never used the download-cache APIs of SDK 9.4 or earlier (`TXVodDownloadManager.setDownloadPath` / `startDownloadUrl`) and do not need to play files cached by those versions, the legacy `libijkhlscache-master.so` can be excluded in `app/build.gradle`:
+
+```gradle
+packagingOptions {
+    exclude "lib/armeabi/libijkhlscache-master.so"
+    exclude "lib/armeabi-v7a/libijkhlscache-master.so"
+    exclude "lib/arm64-v8a/libijkhlscache-master.so"
+}
+```
+
+> LiteAVSDK Player 11.7 and later already remove `libijkhlscache-master.so` by default, so this configuration is no longer needed.
+
+> If your app is only distributed in mainland China, package only the `armeabi-v7a` and `arm64-v8a` architectures (or ship the jar only and download the SO files at runtime).
 
 ---
 
@@ -164,7 +179,7 @@ It is recommended to use a **Foreground Service** in the app to prevent the syst
 
 **Q: On Android P, playback reports "java.io.IOException: Cleartext HTTP traffic to 127.0.0.1 not permitted"?**
 
-**Cause**: Android P prohibits cleartext HTTP traffic, but the Player SDK starts a local server proxy.
+**Cause**: Starting with Android P, apps with `targetSdkVersion >= 28` must use encrypted connections, but the Player SDK starts a local server proxy that serves HTTP requests to `127.0.0.1`.
 
 **Solution**:
 
@@ -249,11 +264,55 @@ Starting from version 11.7.15343:
 
 ---
 
+## HarmonyOS SDK FAQ
+
+**Q: Playback fails unexpectedly after integration?**
+
+Make sure the License URL and Key are configured correctly at app startup; an incorrectly configured License can cause playback failures.
+
+---
+
+**Q: Network requests fail?**
+
+Declare the network permission `ohos.permission.INTERNET` and the network state permission `ohos.permission.GET_NETWORK_INFO` in `module.json5`.
+
+---
+
+**Q: The first few frames have the wrong width/height?**
+
+Before setting the render target, make sure the target has already been sized correctly from the video stream information.
+
+---
+
+**Q: `getSupportedBitrates` returns an empty or incorrect bitrate list?**
+
+Call it only after receiving the `PLAY_EVT_PLAY_BEGIN` event.
+
+---
+
+**Q: Download-related synchronous calls block the main thread?**
+
+Synchronous download queries such as `syncGetDownloadMediaInfoList` and `syncGetDownloadMediaInfoByFileId` are time-consuming; call them in a worker thread instead of the main thread.
+
+---
+
+**Q: External subtitles or multi-audio-track switching do not work?**
+
+These advanced features require a Premium License entitlement; verify that your License has the corresponding permission.
+
+---
+
 ## Flutter SDK FAQ
 
 **Q: iOS reports interface not found?**
 
-Run `pod update` to update the iOS SDK.
+Typical error: `No visible @interface for 'TXLivePlayer' declares the selector 'startLivePlay:type:'`. Force-update the iOS SDK:
+
+```bash
+rm -rf Pods
+rm -rf Podfile.lock
+pod update
+```
 
 ---
 
@@ -283,7 +342,7 @@ Add `tools:replace="android:label"` in `AndroidManifest.xml`.
 
 **Q: Android minSdkVersion error?**
 
-Increase `minSdkVersion` to 19.
+Typical error: `uses-sdk:minSdkVersion 16 cannot be smaller than version 21 declared in library [:super_player]`. Set `minSdkVersion` to **21** in the main module's `build.gradle`. For Picture-in-Picture support, set `compileSdkVersion` and `targetSdkVersion` to at least 31.
 
 ---
 
@@ -309,7 +368,7 @@ Check whether the local path is correct and whether storage read permission is g
 
 **Q: Flutter version compatibility issues (texture rendering)?**
 
-Upgrade Flutter to version 3.7.0 or above to avoid texture rendering issues.
+Upgrade Flutter to version 3.27.4 or above to avoid texture rendering issues.
 
 ---
 

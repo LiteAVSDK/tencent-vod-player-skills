@@ -144,7 +144,8 @@ struct PlayerPage {
       XComponent({
         id: 'video_player',
         type: XComponentType.SURFACE,
-        controller: new XComponentController()
+        controller: new XComponentController(),
+        libraryname: 'liteavsdk'
       })
         .onLoad((xContext) => {
           this.surfaceId = xContext.getXComponentSurfaceId();
@@ -161,17 +162,17 @@ struct PlayerPage {
 ### 4.3 Set Up Event Listeners
 
 ```typescript
-import { TXVodPlayer, ITXVodPlayListener, TXVodConstants } from 'liteavsdk';
+import { TXVodPlayer, ITXVodPlayCallback, TXVodConstants } from 'liteavsdk';
 
-let listener: ITXVodPlayListener = {
+let listener: ITXVodPlayCallback = {
   onPlayEvent: (player: TXVodPlayer, event: number, eventData?: Map<string, any>) => {
     switch (event) {
       case TXVodConstants.VOD_PLAY_EVT_PLAY_BEGIN:
         console.log('Playback started');
         break;
       case TXVodConstants.VOD_PLAY_EVT_PLAY_PROGRESS:
-        let progress = eventData?.get('EVT_PLAY_PROGRESS');
-        let duration = eventData?.get('EVT_PLAY_DURATION');
+        let progress = eventData?.get('EVT_PLAY_PROGRESS_MS');
+        let duration = eventData?.get('EVT_PLAY_DURATION_MS');
         console.log(`Progress: ${progress}/${duration}`);
         break;
       case TXVodConstants.VOD_PLAY_EVT_PLAY_END:
@@ -245,6 +246,9 @@ player.seek(30);
 // Accurate seek
 player.seek(30, true);
 
+// Start from a specified time (set before the first startVodPlay)
+player.setStartTime(60);
+
 // Stop playback
 player.stopPlay(true);
 ```
@@ -292,6 +296,11 @@ player.setBitrateIndex(2);
 
 // Adaptive bitrate
 player.setBitrateIndex(-1);
+player.setBitrateIndex(TXVodConstants.INDEX_AUTO);  // Official constant for -1
+
+// Get video resolution after VOD_PLAY_EVT_VOD_PLAY_PREPARED
+let width = player.getWidth();
+let height = player.getHeight();
 ```
 
 ### 5.6 Player Configuration
@@ -313,12 +322,12 @@ player.setConfig(config);
 ### 5.7 Progress and Network Speed Monitoring
 
 ```typescript
-let listener: ITXVodPlayListener = {
+let listener: ITXVodPlayCallback = {
   onPlayEvent: (player, event, eventData) => {
     if (event === TXVodConstants.VOD_PLAY_EVT_PLAY_PROGRESS) {
-      let progress = eventData?.get('EVT_PLAY_PROGRESS');      // Current progress
-      let playable = eventData?.get('EVT_PLAYABLE_DURATION');  // Playable duration
-      let duration = eventData?.get('EVT_PLAY_DURATION');      // Total duration
+      let progress = eventData?.get('EVT_PLAY_PROGRESS_MS');      // Current progress
+      let playable = eventData?.get('EVT_PLAYABLE_DURATION_MS');  // Playable duration
+      let duration = eventData?.get('EVT_PLAY_DURATION_MS');      // Total duration
     }
   },
   
@@ -446,6 +455,26 @@ let dataSource = new TXVodDownloadDataSource(
   'psignxxxxxxx'
 );
 downloadManager.startDownloadDataSource(dataSource);
+
+// URL download with a preferred resolution (width * height)
+let urlMediaInfo = downloadManager.startDownloadUrl('https://example.com/video.m3u8', 720 * 1280);
+
+// Manage downloads (time-consuming; call on a worker thread)
+let downloadInfoList = downloadManager.syncGetDownloadMediaInfoList();
+let byFileId = downloadManager.syncGetDownloadMediaInfoByFileId(
+  1500005830, '8602268011437356984', TXVodDownloadDataSource.QUALITY_720P
+);
+let byUrl = downloadManager.syncGetDownloadMediaInfoByUrl('https://example.com/video.m3u8');
+let totalDuration = byFileId.getDuration();
+let playableDuration = byFileId.getPlayableDuration();
+let playPath = byFileId.getPlayPath();
+let downloadState = byFileId.getDownloadState();
+downloadManager.stopDownload(byFileId);
+downloadManager.deleteDownloadMediaInfo(byFileId);
+
+// Quality constants also include QUALITY_2K and QUALITY_4K
+let dataSource2K = new TXVodDownloadDataSource(1252463788, '4564972819220421305',
+  TXVodDownloadDataSource.QUALITY_2K, 'psignxxxxxxx');
 ```
 
 ### 6.4 Encrypted Playback
@@ -467,7 +496,7 @@ player.startVodPlay(params);
 player.addSubtitleSource(
   'https://example.com/subtitle.vtt',
   'Chinese Subtitles',
-  'text/vtt'
+  TXVodConstants.VOD_PLAY_MIMETYPE_TEXT_VTT
 );
 
 // Get subtitle track list
@@ -486,12 +515,17 @@ player.deselectTrack(trackIndex);
 ### 6.6 Snapshot
 
 ```typescript
-player.snapshotAsync((pixelMap) => {
-  if (pixelMap) {
-    // Process the snapshot for rendering or saving
-    console.log('Snapshot captured successfully');
+// The snapshot result is delivered through onSnapshotComplete
+player.setVodPlayCallback({
+  onPlayEvent: (player, event, eventData) => {},
+  onNetStatus: (player, statusData) => {},
+  onSnapshotComplete: (player, pixelMap) => {
+    if (pixelMap) {
+      console.log('Snapshot captured successfully');
+    }
   }
 });
+player.snapshotAsync(getUIContext(), nativeXComponentID);
 ```
 
 ---
@@ -509,11 +543,21 @@ player.snapshotAsync((pixelMap) => {
 | 2007 | `VOD_PLAY_EVT_PLAY_LOADING` | Buffering |
 | 2014 | `VOD_PLAY_EVT_VOD_LOADING_END` | Buffering ended |
 | 2009 | `VOD_PLAY_EVT_CHANGE_RESOLUTION` | Resolution changed |
+| 2003 | `VOD_PLAY_EVT_RCV_FIRST_I_FRAME` | First renderable video packet (IDR) |
+| 2010 | `VOD_PLAY_EVT_GET_PLAYINFO_SUCC` | VOD file info retrieved successfully |
+| 2011 | `VOD_PLAY_EVT_CHANGE_ROTATION` | MP4 video rotation angle |
+| 2017 | `VOD_PLAY_EVT_FIRST_VIDEO_PACKET` | First video packet received |
+| 2019 | `VOD_PLAY_EVT_SEEK_COMPLETE` | Seek completed |
+| 2103 | `VOD_PLAY_WARNING_RECONNECT` | Network disconnected, auto-reconnecting |
+| 1103 | `VOD_PLAY_WARNING_HW_ACCELERATION_FAIL` | Hardware decoding failed, software fallback |
+| -2301 | `VOD_PLAY_ERR_NET_DISCONNECT` | Network disconnected after retries |
+| -2305 | `VOD_PLAY_ERR_HLS_KEY` | HLS decryption key retrieval failed |
+| - | `VOD_PLAY_EVT_SELECT_TRACK_SUCCESS` | Track switch succeeded |
 
 ### 7.2 Complete Event Listener Example
 
 ```typescript
-let listener: ITXVodPlayListener = {
+let listener: ITXVodPlayCallback = {
   onPlayEvent: (player, event, eventData) => {
     switch (event) {
       case TXVodConstants.VOD_PLAY_EVT_PLAY_BEGIN:
@@ -521,10 +565,10 @@ let listener: ITXVodPlayListener = {
         break;
         
       case TXVodConstants.VOD_PLAY_EVT_PLAY_PROGRESS:
-        let progress = eventData?.get('EVT_PLAY_PROGRESS');
-        let playable = eventData?.get('EVT_PLAYABLE_DURATION');
-        let duration = eventData?.get('EVT_PLAY_DURATION');
-        console.log(`Progress: ${progress}s / ${duration}s, Playable: ${playable}s`);
+        let progress = eventData?.get('EVT_PLAY_PROGRESS_MS');
+        let playable = eventData?.get('EVT_PLAYABLE_DURATION_MS');
+        let duration = eventData?.get('EVT_PLAY_DURATION_MS');
+        console.log(`Progress: ${progress}ms / ${duration}ms, Playable: ${playable}ms`);
         break;
         
       case TXVodConstants.VOD_PLAY_EVT_PLAY_END:
@@ -572,6 +616,31 @@ let listener: ITXVodPlayListener = {
 player.setVodPlayCallback(listener);
 ```
 
+### 7.3 Event Parameter Constants
+
+Keys used with `eventData?.get(...)` and `statusData.get(...)` (prefixed with `TXVodConstants.` in official code):
+
+| Constant | Description |
+|----------|-------------|
+| `EVT_PLAY_PROGRESS_MS` | Current playback progress (milliseconds) |
+| `EVT_PLAY_DURATION_MS` | Total video duration (milliseconds) |
+| `EVT_PLAYABLE_DURATION_MS` | Playable duration (milliseconds) |
+| `EVT_PARAM1` / `EVT_PARAM2` | Video width / height on resolution change |
+| `EVT_KEY_SELECT_TRACK_INDEX` | Selected track index |
+| `EVT_PLAY_COVER_URL` | Video cover URL |
+| `EVT_PLAY_URL` | Video playback URL |
+| `EVT_PLAY_DURATION` | Video duration |
+| `EVT_TIME` / `EVT_UTC_TIME` | Event time / UTC time |
+| `EVT_DESCRIPTION` | Event description |
+| `EVT_PLAY_NAME` | Video name |
+| `EVT_IMAGESPRIT_WEBVTTURL` | Image sprite WebVTT description URL |
+| `EVT_IMAGESPRIT_IMAGEURL_LIST` | Image sprite image download URLs |
+| `EVT_DRM_TYPE` | Encryption type |
+| `NET_STATUS_CPU_USAGE` | Instantaneous CPU usage |
+| `NET_STATUS_AUDIO_BITRATE` | Audio bitrate |
+| `NET_STATUS_VIDEO_CACHE` | Jitter buffer size |
+| `NET_STATUS_SERVER_IP` | Connected server IP |
+
 ---
 
 ## 8. Important Notes
@@ -589,7 +658,7 @@ player.setVodPlayCallback(listener);
 
 ```typescript
 import { TXVodPlayer, TXVodPlayConfig, TXPlayInfoParams, TXVodConstants,
-         ITXVodPlayListener, TXVodGlobalSetting } from 'liteavsdk';
+         ITXVodPlayCallback, TXVodGlobalSetting } from 'liteavsdk';
 import { getV2TXLivePremierShareInstance } from 'liteavsdk';
 
 @Entry
@@ -625,7 +694,7 @@ struct PlayerDemo {
     this.player.setVodPlayCallback(this.createListener());
   }
   
-  createListener(): ITXVodPlayListener {
+  createListener(): ITXVodPlayCallback {
     return {
       onPlayEvent: (player, event, eventData) => {
         switch (event) {
@@ -633,8 +702,8 @@ struct PlayerDemo {
             this.isPlaying = true;
             break;
           case TXVodConstants.VOD_PLAY_EVT_PLAY_PROGRESS:
-            this.progress = eventData?.get('EVT_PLAY_PROGRESS') || 0;
-            this.duration = eventData?.get('EVT_PLAY_DURATION') || 0;
+            this.progress = eventData?.get('EVT_PLAY_PROGRESS_MS') || 0;
+            this.duration = eventData?.get('EVT_PLAY_DURATION_MS') || 0;
             break;
           case TXVodConstants.VOD_PLAY_EVT_PLAY_END:
             this.isPlaying = false;
@@ -653,7 +722,8 @@ struct PlayerDemo {
       XComponent({
         id: 'video_player',
         type: XComponentType.SURFACE,
-        controller: new XComponentController()
+        controller: new XComponentController(),
+        libraryname: 'liteavsdk'
       })
         .onLoad((xContext) => {
           this.surfaceId = xContext.getXComponentSurfaceId();
